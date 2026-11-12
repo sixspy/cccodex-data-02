@@ -16,10 +16,17 @@
   </form>
 </section>
 <section class="card">
+  <div class="filter-bar">
+    {% for key, label in filters.items() %}
+    <a class="tag filter {% if active_filter == key %}active{% endif %}"
+       href="{{ url_for('jobs.list_jobs', filter=key) if key else url_for('jobs.list_jobs') }}">{{ label }}</a>
+    {% endfor %}
+  </div>
   <table>
     <thead>
       <tr>
-        <th>ID</th><th>名称</th><th>种子</th><th>状态</th><th>记录数</th><th></th>
+        <th>ID</th><th>名称</th><th>种子</th><th>状态</th>
+        <th>最近新写入</th><th>最近跳过</th><th>最近隔离</th><th>待放行</th><th></th>
       </tr>
     </thead>
     <tbody>
@@ -29,11 +36,14 @@
         <td>{{ j.name }}</td>
         <td><code>{{ j.seed_path }}</code></td>
         <td><span class="tag {{ j.status }}">{{ j.status }}</span></td>
-        <td>{{ counts.get(j.id, 0) }}</td>
+        <td>{{ j.last_inserted }}</td>
+        <td>{{ j.last_skipped }}</td>
+        <td>{{ j.last_quarantined }}</td>
+        <td>{{ quarantine_counts.get(j.id, 0) }}</td>
         <td><a href="{{ url_for('jobs.detail', job_id=j.id) }}">详情</a></td>
       </tr>
       {% else %}
-      <tr><td colspan="6" class="muted">尚无任务，请先创建</td></tr>
+      <tr><td colspan="9" class="muted">当前筛选下没有任务</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -42,5 +52,9 @@
   <a href="{{ url_for('mock.catalog', catalog_id='alpha') }}" target="_blank">alpha</a>
   ·
   <a href="{{ url_for('mock.catalog', catalog_id='beta') }}" target="_blank">beta</a>
+  ·
+  <a href="{{ url_for('mock.catalog', catalog_id='gamma') }}" target="_blank">gamma</a>
+  ·
+  <a href="{{ url_for('mock.catalog', catalog_id='delta') }}" target="_blank">delta</a>
 </p>
 {% endblock %}

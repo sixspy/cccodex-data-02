@@ -5,27 +5,77 @@
 <section class="card">
   <h1>{{ job.name }}</h1>
   <p>种子 <code>{{ job.seed_path }}</code> · 状态 <span class="tag {{ job.status }}">{{ job.status }}</span></p>
-  {% if job.status == 'draft' %}
+  <p class="muted">最近一次运行：新写入 {{ job.last_inserted }} · 跳过 {{ job.last_skipped }} · 隔离 {{ job.last_quarantined }}</p>
+  {% if job.message %}
+  <p class="run-message">{{ job.message }}</p>
+  {% endif %}
+  {% if job.status in ['draft', 'failed'] %}
   <form method="post" action="{{ url_for('jobs.run_job_view', job_id=job.id) }}">
     <button type="submit">运行采集（同步）</button>
   </form>
+  {% elif job.status == 'running' %}
+  <p class="muted">运行中……</p>
   {% elif job.status == 'done' %}
   <p class="muted">已完成于 {{ job.finished_at or '—' }}</p>
   {% endif %}
 </section>
+<div class="two-col">
+  <section class="card">
+    <h2>正式库（{{ records|length }} 条）</h2>
+    <table>
+      <thead><tr><th>编码</th><th>标题</th><th>时间</th></tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td><code>{{ r.sku or '—' }}</code></td>
+          <td>{{ r.title }}</td>
+          <td>{{ r.fetched_at }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="muted">尚无记录</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card">
+    <h2>隔离库（{{ quarantined|length }} 条）</h2>
+    <table>
+      <thead><tr><th>编码</th><th>标题</th><th>非法原因</th><th>放行</th></tr></thead>
+      <tbody>
+        {% for q in quarantined %}
+        <tr>
+          <td><code>{{ q.sku or '—' }}</code></td>
+          <td>{{ q.title }}</td>
+          <td><span class="tag reason">{{ q.reason }}</span></td>
+          <td>
+            <form class="release-form" method="post"
+                  action="{{ url_for('jobs.release_quarantine', job_id=job.id, quarantine_id=q.id) }}">
+              <input name="remark" placeholder="放行备注（必填）" required />
+              <button type="submit">放行</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted">无隔离条目</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+</div>
 <section class="card">
-  <h2>落库记录</h2>
+  <h2>放行留痕（{{ releases|length }} 条）</h2>
   <table>
-    <thead><tr><th>item_key</th><th>标题</th><th>时间</th></tr></thead>
+    <thead><tr><th>编码</th><th>标题</th><th>备注</th><th>放行时间</th></tr></thead>
     <tbody>
-      {% for r in records %}
+      {% for r in releases %}
       <tr>
-        <td><code>{{ r.item_key }}</code></td>
+        <td><code>{{ r.sku or '—' }}</code></td>
         <td>{{ r.title }}</td>
-        <td>{{ r.fetched_at }}</td>
+        <td>{{ r.remark }}</td>
+        <td>{{ r.released_at }}</td>
       </tr>
       {% else %}
-      <tr><td colspan="3" class="muted">尚无记录</td></tr>
+      <tr><td colspan="4" class="muted">尚无放行记录</td></tr>
       {% endfor %}
     </tbody>
   </table>

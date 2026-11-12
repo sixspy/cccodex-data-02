@@ -3,29 +3,45 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from app.db import get_db
 from app.routes.auth import login_required
 from app.services.mock_catalog import CATALOGS
-from app.services.runner import run_job
+from app.services.release import release_to_main
+from app.services.runner import JobConflictError, run_job
 
 bp = Blueprint("jobs", __name__)
+
+FILTERS = {
+    "": "全部",
+    "quarantined": "仅含隔离",
+    "failed": "仅失败",
+}
 
 
 @bp.route("/")
 @login_required
 def list_jobs():
+    filter_kind = request.args.get("filter", "")
+    if filter_kind not in FILTERS:
+        filter_kind = ""
     db = get_db()
     jobs = db.execute(
         "SELECT * FROM crawl_jobs ORDER BY id DESC"
     ).fetchall()
-    counts = {
+    quarantine_counts = {
         row["job_id"]: row["c"]
         for row in db.execute(
-            "SELECT job_id, COUNT(*) AS c FROM crawl_records GROUP BY job_id"
+            "SELECT job_id, COUNT(*) AS c FROM quarantine_records GROUP BY job_id"
         )
     }
+    if filter_kind == "quarantined":
+        jobs = [j for j in jobs if quarantine_counts.get(j["id"], 0) > 0]
+    elif filter_kind == "failed":
+        jobs = [j for j in jobs if j["status"] == "failed"]
     return render_template(
         "jobs_list.html",
         jobs=jobs,
-        counts=counts,
+        quarantine_counts=quarantine_counts,
         seeds=sorted(CATALOGS.keys()),
+        filters=FILTERS,
+        active_filter=filter_kind,
     )
 
 
@@ -55,14 +71,32 @@ def create_job():
 def run_job_view(job_id: int):
     try:
         summary = run_job(job_id)
-        flash(
-            f"运行完成：写入 {summary['inserted']} 条，去重跳过 {summary['skipped_dup']} 条",
-            "ok",
-        )
-    except ValueError as e:
+    except (JobConflictError, ValueError) as e:
         flash(str(e), "error")
+        return redirect(url_for("jobs.detail", job_id=job_id))
     except Exception as e:
         flash(f"运行失败: {e}", "error")
+        return redirect(url_for("jobs.detail", job_id=job_id))
+    if summary["status"] == "failed":
+        flash(summary["message"], "error")
+    else:
+        flash(
+            f"运行完成：新写入 {summary['inserted']} 条，"
+            f"跳过 {summary['skipped_dup']} 条，隔离 {summary['quarantined']} 条",
+            "ok",
+        )
+    return redirect(url_for("jobs.detail", job_id=job_id))
+
+
+@bp.post("/jobs/<int:job_id>/quarantine/<int:quarantine_id>/release")
+@login_required
+def release_quarantine(job_id: int, quarantine_id: int):
+    remark = request.form.get("remark", "")
+    try:
+        result = release_to_main(job_id, quarantine_id, remark)
+        flash(f"已放行 {result['sku'] or '(无编码)'}《{result['title']}》入正式库", "ok")
+    except ValueError as e:
+        flash(str(e), "error")
     return redirect(url_for("jobs.detail", job_id=job_id))
 
 
@@ -78,4 +112,18 @@ def detail(job_id: int):
         "SELECT * FROM crawl_records WHERE job_id = ? ORDER BY id",
         (job_id,),
     ).fetchall()
-    return render_template("job_detail.html", job=job, records=records)
+    quarantined = db.execute(
+        "SELECT * FROM quarantine_records WHERE job_id = ? ORDER BY id",
+        (job_id,),
+    ).fetchall()
+    releases = db.execute(
+        "SELECT * FROM release_logs WHERE job_id = ? ORDER BY id DESC",
+        (job_id,),
+    ).fetchall()
+    return render_template(
+        "job_detail.html",
+        job=job,
+        records=records,
+        quarantined=quarantined,
+        releases=releases,
+    )

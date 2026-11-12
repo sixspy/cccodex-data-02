@@ -28,6 +28,17 @@ code { font-size: 0.85em; }
 .tag.done { background: #1e4d3a; color: #9fe0c0; }
 .tag.draft { background: #3a4556; }
 .tag.failed { background: #5a2a2a; color: #ffb3b3; }
+.tag.running { background: #4d3a1e; color: #ffd89f; }
+.tag.reason { background: #4d2a4a; color: #e8b3e0; }
+.filter-bar { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.tag.filter { text-decoration: none; color: var(--text); }
+.tag.filter.active { background: var(--accent); color: #fff; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+.release-form { display: flex; gap: 0.4rem; }
+.release-form input { width: 10rem; padding: 0.3rem 0.5rem; }
+.release-form button { padding: 0.3rem 0.6rem; }
+.run-message { color: var(--err); }
 .flash { list-style: none; padding: 0 1.25rem; }
 .flash .ok { color: var(--ok); }
 .flash .error { color: var(--err); }
